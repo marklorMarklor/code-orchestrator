@@ -1,0 +1,133 @@
+{
+  "project": "mcp_datagouv",
+  "description": "MCP (Model Context Protocol) client pour interroger, parser, et visualiser des données issues de data.gouv.fr via des requêtes en langage naturel.",
+  "version": "0.1",
+  "modules": [
+    {
+      "name": "main_api",
+      "path": "main.py",
+      "agent": "AgentRouter",
+      "description": "Point d'entrée FastAPI. Expose les routes publiques pour interagir avec le MCP.",
+      "input": "Requête HTTP POST contenant une question utilisateur en langage naturel",
+      "output": "Réponse JSON structurée (résumé, données tabulaires, lien vers carte/graph)",
+      "depends_on": ["router", "orchestrator"]
+    },
+    {
+      "name": "router",
+      "path": "router.py",
+      "agent": "AgentRouter",
+      "description": "Définit les routes REST exposées dans main.py. Route principale : /query",
+      "input": "question utilisateur",
+      "output": "appel au orchestrator et retour de réponse HTTP",
+      "depends_on": ["orchestrator"]
+    },
+    {
+      "name": "orchestrator",
+      "path": "orchestrator.py",
+      "agent": "AgentOrchestrator",
+      "description": "Cerveau du MCP. Reçoit une question NL, appelle l'agent LLM, interprète le plan, exécute les actions dans l'ordre",
+      "input": "question en langage naturel",
+      "output": "résultat structuré (liste, graph, carte)",
+      "depends_on": ["llm_agent", "planner", "datagouv_api", "parsers", "visualizer"]
+    },
+    {
+      "name": "llm_agent",
+      "path": "llm_agent.py",
+      "agent": "AgentLLM",
+      "description": "Appelle un LLM (OpenAI, Claude, Mistral, etc.) pour transformer une question NL en intention ou plan JSON",
+      "input": "question utilisateur",
+      "output": "structure JSON : {intent, actions, entités, période, formats, etc.}",
+      "depends_on": []
+    },
+    {
+      "name": "planner",
+      "path": "planner.py",
+      "agent": "AgentPlanner",
+      "description": "Analyse la sortie LLM pour générer un plan d'action exécutable par le MCP (enrichi de fonctions spécifiques)",
+      "input": "intention JSON brute",
+      "output": "plan d'exécution MCP",
+      "depends_on": ["llm_agent"]
+    },
+    {
+      "name": "datagouv_api",
+      "path": "datagouv_api.py",
+      "agent": "AgentAPIFetch",
+      "description": "Interroge l'API data.gouv.fr pour rechercher des datasets selon les requêtes du plan",
+      "input": "mot-clé ou intention",
+      "output": "métadonnées de datasets + URL des ressources",
+      "depends_on": []
+    },
+    {
+      "name": "downloader",
+      "path": "downloader.py",
+      "agent": "AgentAPIFetch",
+      "description": "Télécharge un fichier à partir d'une URL, détecte son format et le stocke temporairement",
+      "input": "URL d'une ressource (CSV, JSON, etc.)",
+      "output": "fichier local + info de format",
+      "depends_on": []
+    },
+    {
+      "name": "csv_parser",
+      "path": "parsers/csv_parser.py",
+      "agent": "AgentParsers",
+      "description": "Charge et parse un fichier CSV en DataFrame + dictionnaire compatible avec la suite du traitement",
+      "input": "fichier CSV (path)",
+      "output": "DataFrame pandas + JSON tabulaire (optionnel)",
+      "depends_on": []
+    },
+    {
+      "name": "json_parser",
+      "path": "parsers/json_parser.py",
+      "agent": "AgentParsers",
+      "description": "Charge un JSON brut, identifie les structures exploitables (tableau, clé/valeur)",
+      "input": "fichier JSON (path)",
+      "output": "objet Python structuré (liste, dict, DataFrame)",
+      "depends_on": []
+    },
+    {
+      "name": "geojson_parser",
+      "path": "parsers/geojson_parser.py",
+      "agent": "AgentParsers",
+      "description": "Parse les fichiers GeoJSON en GeoDataFrame, extrait les propriétés et les coordonnées",
+      "input": "fichier GeoJSON (path)",
+      "output": "GeoDataFrame exploitable pour map",
+      "depends_on": []
+    },
+    {
+      "name": "map_animator",
+      "path": "visualizer/map_animator.py",
+      "agent": "AgentVisualizer",
+      "description": "Génère une animation spatio-temporelle des données sur une carte (par mois, année...)",
+      "input": "GeoDataFrame avec timestamps",
+      "output": "GIF ou série d’images + JSON de localisation temporelle",
+      "depends_on": ["geojson_parser", "temporal_utils"]
+    },
+    {
+      "name": "summary_chart",
+      "path": "visualizer/summary_chart.py",
+      "agent": "AgentVisualizer",
+      "description": "Produit des graphiques de synthèse : histogrammes, lignes, heatmaps",
+      "input": "DataFrame",
+      "output": "Fichier image ou JSON de description de graph",
+      "depends_on": []
+    },
+    {
+      "name": "temporal_utils",
+      "path": "utils/temporal_utils.py",
+      "agent": "AgentUtils",
+      "description": "Transforme les colonnes temporelles en objets datetime, groupe par mois/année",
+      "input": "DataFrame",
+      "output": "DataFrame enrichi avec colonnes 'année', 'mois', etc.",
+      "depends_on": []
+    },
+    {
+      "name": "geo_utils",
+      "path": "utils/geo_utils.py",
+      "agent": "AgentUtils",
+      "description": "Fonctions de géolocalisation, centroids, conversion code INSEE, etc.",
+      "input": "GeoDataFrame ou liste d'entités localisées",
+      "output": "GeoDataFrame enrichi",
+      "depends_on": []
+    }
+  ]
+}
